@@ -1,57 +1,73 @@
 import pandas as pd
-from nepse_data_api import Nepse
+import requests
 
 
-class ChukulFetcher:
+class NEPSEFetcher:
+
+    URLS = [
+        "https://nepsealpha.com/trading/1/market",
+        "https://nepsealpha.com/data/today-price"
+    ]
 
     def safe_float(self, x):
         try:
+            if x in [None, "", "-", "null"]:
+                return 0.0
             return float(str(x).replace(",", ""))
         except:
             return 0.0
 
     def fetch(self):
-        try:
-            nepse = Nepse()
 
-            data = nepse.get_stocks()
+        for url in self.URLS:
+            try:
+                r = requests.get(url, timeout=10)
+                if r.status_code != 200:
+                    continue
 
-            rows = []
+                data = r.json()
 
-            for row in data:
+                # unwrap common API formats
+                if isinstance(data, dict):
+                    data = data.get("result") or data.get("data") or []
 
-                rows.append({
-                    "symbol": row.get("symbol") or row.get("stockSymbol") or "",
+                rows = []
 
-                    "ltp": self.safe_float(
-                        row.get("ltp") or
-                        row.get("lastTradedPrice") or
-                        row.get("closingPrice")
-                    ),
+                for r in data:
 
-                    "open": self.safe_float(
-                        row.get("open") or
-                        row.get("openPrice")
-                    ),
+                    rows.append({
+                        "symbol": r.get("symbol", ""),
 
-                    "volume": self.safe_float(
-                        row.get("volume") or
-                        row.get("totalTradedQuantity") or
-                        row.get("qty")
-                    ),
+                        "ltp": self.safe_float(
+                            r.get("ltp") or r.get("lastTradedPrice") or r.get("close")
+                        ),
 
-                    "turnover": self.safe_float(
-                        row.get("turnover") or
-                        row.get("totalTradedValue") or
-                        row.get("amount")
-                    ),
-                })
+                        "open": self.safe_float(
+                            r.get("open") or r.get("openPrice")
+                        ),
 
-            df = pd.DataFrame(rows)
+                        "volume": self.safe_float(
+                            r.get("volume") or r.get("qty") or r.get("totalTradedQuantity")
+                        ),
 
-            df = df[(df["ltp"] > 0) & (df["volume"] > 0)]
+                        "turnover": self.safe_float(
+                            r.get("turnover") or r.get("totalTradedValue")
+                        ),
+                    })
 
-            return df.reset_index(drop=True)
+                df = pd.DataFrame(rows)
 
-        except Exception as e:
-            raise Exception(f"NEPSE fetch failed: {e}")
+                # enforce schema
+                for col in ["symbol", "ltp", "open", "volume", "turnover"]:
+                    if col not in df.columns:
+                        df[col] = 0
+
+                df = df[(df["ltp"] > 0) & (df["volume"] > 0)]
+
+                if len(df) > 0:
+                    return df.reset_index(drop=True)
+
+            except:
+                continue
+
+        raise Exception("All data sources failed")

@@ -6,38 +6,32 @@ def run_analysis(df):
 
     df = df.copy()
 
-    # ---------------------------
-    # BASIC FEATURES
-    # ---------------------------
+    # safety fixes
+    df["open"] = df["open"].replace(0, df["ltp"])
+
+    # returns
     df["return_pct"] = ((df["ltp"] - df["open"]) / df["open"]) * 100
+
+    # liquidity
     df["turnover_m"] = df["turnover"] / 1_000_000
 
-    # ---------------------------
-    # AMIHUD (liquidity stress)
-    # ---------------------------
     df["amihud"] = np.where(
         df["turnover_m"] > 0,
         abs(df["return_pct"]) / df["turnover_m"],
         999
     )
 
-    # ---------------------------
-    # MOMENTUM (proxy swing trend)
-    # ---------------------------
+    # momentum
     df["momentum"] = df["ltp"] - df["open"]
 
-    # ---------------------------
-    # TREND STRENGTH SCORE
-    # ---------------------------
+    # trend score
     df["trend_strength"] = (
-        df["return_pct"] * 0.4 +
+        df["return_pct"] * 0.5 +
         df["momentum"] * 0.3 -
-        df["amihud"] * 0.3
+        df["amihud"] * 0.2
     )
 
-    # ---------------------------
-    # MARKET REGIME CLASSIFICATION
-    # ---------------------------
+    # clustering (rule-based)
     df["cluster"] = "Retail"
 
     df.loc[

@@ -1,52 +1,49 @@
-# =========================
-# File 3: signals.py
-# =========================
 import numpy as np
-import pandas as pd
 
 
 def generate_signals(df):
+
     df = df.copy()
 
-    signal = []
+    signals = []
     confidence = []
     advice = []
     target = []
     stoploss = []
 
-    for _, row in df.iterrows():
+    for _, r in df.iterrows():
 
         sig = "HOLD"
-        conf = 45
-        msg = "Wait for better setup."
-        tgt = row["ltp"]
-        sl = row["ltp"] * 0.97
+        conf = 40
+        msg = "No clear setup"
+        tgt = r["ltp"]
+        sl = r["ltp"] * 0.97
 
-        if row["cluster_name"] == "Institutional":
+        if r["cluster_name"] == "Institutional":
 
-            if row["ltp"] > row["open"]:
+            if r["ltp"] > r["open"]:
                 sig = "STRONG BUY"
-                conf = min(95, 70 + row["return_pct"] * 3)
-                tgt = row["ltp"] * 1.05
-                sl = row["ltp"] * 0.96
-                msg = f"🔥 Smart Money is absorbing supply. Target Rs. {tgt:.2f}"
+                conf = 75 + min(r["return_pct"] * 2, 20)
+                tgt = r["ltp"] * 1.06
+                sl = r["ltp"] * 0.95
+                msg = "🔥 Smart Money Accumulation Detected"
 
-            elif row["ltp"] < row["open"]:
+            elif r["ltp"] < r["open"]:
                 sig = "EXIT"
-                conf = min(90, 65 + abs(row["return_pct"]) * 2)
-                tgt = row["ltp"] * 0.95
-                sl = row["ltp"] * 1.03
-                msg = f"⚠️ Institutions distributing stock. Protect capital."
+                conf = 70 + min(abs(r["return_pct"]) * 2, 20)
+                tgt = r["ltp"] * 0.94
+                sl = r["ltp"] * 1.03
+                msg = "⚠️ Distribution Phase Detected"
 
-        signal.append(sig)
-        confidence.append(round(conf, 1))
+        signals.append(sig)
+        confidence.append(round(conf, 2))
         advice.append(msg)
         target.append(round(tgt, 2))
         stoploss.append(round(sl, 2))
 
-    df["Signal"] = signal
+    df["Signal"] = signals
     df["Confidence %"] = confidence
-    df["SimpleAdvice"] = advice
+    df["Advice"] = advice
     df["Target"] = target
     df["StopLoss"] = stoploss
 

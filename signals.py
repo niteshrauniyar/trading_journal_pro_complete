@@ -1,6 +1,3 @@
-import numpy as np
-
-
 def generate_signals(df):
 
     df = df.copy()
@@ -17,45 +14,37 @@ def generate_signals(df):
 
         sig = "HOLD"
         conf = 40
-        msg = "No clear swing setup"
+        msg = "No setup"
         tgt = r["ltp"]
         sl = r["ltp"] * 0.95
 
-        # ---------------------------
-        # SWING BUY SETUP
-        # ---------------------------
+        # BUY condition
         if r["cluster"] == "Institutional" and score > 10:
 
             sig = "SWING BUY"
-            conf = min(92, 60 + score * 2)
+            conf = min(95, 60 + score * 2)
 
             tgt = r["ltp"] * 1.08
             sl = r["ltp"] * 0.94
 
             msg = "🔥 Institutional accumulation + momentum breakout"
 
-        # ---------------------------
-        # SWING EXIT SETUP
-        # ---------------------------
+        # EXIT condition
         elif r["cluster"] == "Institutional" and score < -5:
 
             sig = "EXIT"
-
-            conf = min(88, 60 + abs(score) * 2)
+            conf = min(90, 60 + abs(score) * 2)
 
             tgt = r["ltp"] * 0.93
             sl = r["ltp"] * 1.03
 
-            msg = "⚠️ Distribution detected — exit swing position"
+            msg = "⚠️ Distribution detected"
 
-        # ---------------------------
-        # SPECULATIVE FILTER
-        # ---------------------------
+        # speculative filter
         elif r["cluster"] == "Speculative":
-
             sig = "NO TRADE"
             conf = 50
-            msg = "High volatility - avoid swing entry"
+            msg = "High volatility zone"
 
         signals.append(sig)
         confidence.append(round(conf, 2))

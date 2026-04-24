@@ -1,122 +1,62 @@
-# =========================
-# File 4: app.py
-# =========================
 import streamlit as st
-import pandas as pd
-from data_fetcher import ChukulFetcher
+from data_fetcher import NEPSEFetcher
 from analysis import run_analysis
 from signals import generate_signals
 
 
-st.set_page_config(
-    page_title="NEPSE Institutional Quant App",
-    layout="wide"
-)
+st.set_page_config(layout="wide", page_title="NEPSE Quant App")
 
-# -----------------------
-# Dark Theme CSS
-# -----------------------
 st.markdown("""
 <style>
-body, .stApp {
-    background-color:#0e1117;
-    color:white;
-}
-[data-testid="metric-container"]{
-    background:#161b22;
-    border:1px solid #2f3542;
-    padding:15px;
-    border-radius:10px;
-}
+body { background-color: #0e1117; color: white; }
 </style>
 """, unsafe_allow_html=True)
 
-# Session Safety
+st.title("📊 NEPSE Institutional Quant Dashboard")
+
+st.latex(r"Amihud = \frac{|Return\%|}{Turnover\ in\ Millions}")
+
 if "df" not in st.session_state:
-    st.session_state["df"] = pd.DataFrame()
+    st.session_state.df = None
 
-st.title("📈 Institutional Quant App - NEPSE")
-st.caption("Powered by Chukul Data Source")
 
-# Formula
-st.latex(r'''
-Amihud = \frac{|Return\%|}{Turnover\ in\ Millions}
-''')
-
-# -----------------------
-# Fetch Button
-# -----------------------
-if st.button("🔄 Refresh Market Data"):
+if st.button("🔄 Load Market Data"):
 
     try:
-        fetcher = ChukulFetcher()
-        raw_df = fetcher.fetch()
+        fetcher = NEPSEFetcher()
+        df = fetcher.fetch()
 
-        df = run_analysis(raw_df)
+        df = run_analysis(df)
         df = generate_signals(df)
 
-        st.session_state["df"] = df
+        st.session_state.df = df
 
     except Exception as e:
-        st.warning(f"Unable to connect to Chukul API. {e}")
+        st.error(f"Data error: {e}")
 
-df = st.session_state["df"]
 
-# -----------------------
-# If data exists
-# -----------------------
-if not df.empty:
+df = st.session_state.df
 
-    col1, col2, col3 = st.columns(3)
+if df is not None and len(df) > 0:
 
-    buys = (df["Signal"] == "STRONG BUY").sum()
-    sells = (df["Signal"] == "EXIT").sum()
-    institutional = (df["cluster_name"] == "Institutional").sum()
+    c1, c2, c3 = st.columns(3)
 
-    col1.metric("📊 Buy Signals", buys)
-    col2.metric("🚪 Exit Signals", sells)
-    col3.metric("🏦 Institutional Stocks", institutional)
+    c1.metric("Buy Signals", (df["Signal"] == "STRONG BUY").sum())
+    c2.metric("Exit Signals", (df["Signal"] == "EXIT").sum())
+    c3.metric("Institutional", (df["cluster_name"] == "Institutional").sum())
 
-    st.divider()
-
-    # -----------------------
-    # Signal Table
-    # -----------------------
-    st.subheader("🚀 Trade Signals")
-
-    signal_df = df[df["Signal"].isin(["STRONG BUY", "EXIT"])]
-
-    show_cols = [
-        "symbol", "Signal", "Confidence %",
-        "ltp", "Target", "StopLoss",
-        "SimpleAdvice"
-    ]
-
-    show_cols = [c for c in show_cols if c in signal_df.columns]
+    st.subheader("📌 Trade Signals")
 
     st.dataframe(
-        signal_df[show_cols],
-        use_container_width=True,
-        height=350
+        df[df["Signal"].isin(["STRONG BUY", "EXIT"])][
+            ["symbol", "Signal", "Confidence %", "Target", "StopLoss", "Advice"]
+        ],
+        use_container_width=True
     )
 
-    st.divider()
+    st.subheader("📊 Full Market Matrix")
 
-    # -----------------------
-    # Full Data Matrix
-    # -----------------------
-    st.subheader("📌 Full Quant Matrix")
-
-    def highlight_rows(row):
-        if row["cluster_name"] == "Institutional":
-            return ['background-color:#123524'] * len(row)
-        return [''] * len(row)
-
-    st.dataframe(
-        df.style.apply(highlight_rows, axis=1),
-        use_container_width=True,
-        height=600
-    )
+    st.dataframe(df, use_container_width=True)
 
 else:
-    st.info("Click Refresh Market Data to load live NEPSE data.")
+    st.info("Click Load Market Data")

@@ -1,73 +1,88 @@
 import pandas as pd
 import requests
+import os
+import json
 
 
 class NEPSEFetcher:
 
-    URLS = [
-        "https://nepsealpha.com/trading/1/market",
-        "https://nepsealpha.com/data/today-price"
-    ]
+    CACHE_FILE = "cache.json"
 
     def safe_float(self, x):
         try:
-            if x in [None, "", "-", "null"]:
-                return 0.0
             return float(str(x).replace(",", ""))
         except:
             return 0.0
 
+    # ---------------------------
+    # 1. Load cache (always works)
+    # ---------------------------
+    def load_cache(self):
+        if os.path.exists(self.CACHE_FILE):
+            with open(self.CACHE_FILE, "r") as f:
+                return pd.DataFrame(json.load(f))
+        return pd.DataFrame()
+
+    # ---------------------------
+    # 2. Save cache
+    # ---------------------------
+    def save_cache(self, df):
+        with open(self.CACHE_FILE, "w") as f:
+            json.dump(df.to_dict(orient="records"), f)
+
+    # ---------------------------
+    # 3. Try live source (optional)
+    # ---------------------------
+    def fetch_live(self):
+        url = "https://nepsealpha.com/data/today-price"
+
+        r = requests.get(url, timeout=10)
+
+        if r.status_code != 200:
+            raise Exception("Live API failed")
+
+        data = r.json()
+
+        if isinstance(data, dict):
+            data = data.get("result", data.get("data", []))
+
+        rows = []
+
+        for r in data:
+            rows.append({
+                "symbol": r.get("symbol", ""),
+                "ltp": self.safe_float(r.get("lastTradedPrice", 0)),
+                "open": self.safe_float(r.get("openPrice", 0)),
+                "volume": self.safe_float(r.get("totalTradedQuantity", 0)),
+                "turnover": self.safe_float(r.get("totalTradedValue", 0)),
+            })
+
+        df = pd.DataFrame(rows)
+
+        df = df[(df["ltp"] > 0) & (df["volume"] > 0)]
+
+        return df
+
+    # ---------------------------
+    # 4. Main function (SAFE)
+    # ---------------------------
     def fetch(self):
 
-        for url in self.URLS:
-            try:
-                r = requests.get(url, timeout=10)
-                if r.status_code != 200:
-                    continue
+        try:
+            df = self.fetch_live()
 
-                data = r.json()
+            # save cache if success
+            self.save_cache(df)
 
-                # unwrap common API formats
-                if isinstance(data, dict):
-                    data = data.get("result") or data.get("data") or []
+            return df
 
-                rows = []
+        except Exception as e:
+            print("Live failed:", e)
 
-                for r in data:
+            # fallback to cache
+            df = self.load_cache()
 
-                    rows.append({
-                        "symbol": r.get("symbol", ""),
+            if df.empty:
+                raise Exception("No live data + no cache available")
 
-                        "ltp": self.safe_float(
-                            r.get("ltp") or r.get("lastTradedPrice") or r.get("close")
-                        ),
-
-                        "open": self.safe_float(
-                            r.get("open") or r.get("openPrice")
-                        ),
-
-                        "volume": self.safe_float(
-                            r.get("volume") or r.get("qty") or r.get("totalTradedQuantity")
-                        ),
-
-                        "turnover": self.safe_float(
-                            r.get("turnover") or r.get("totalTradedValue")
-                        ),
-                    })
-
-                df = pd.DataFrame(rows)
-
-                # enforce schema
-                for col in ["symbol", "ltp", "open", "volume", "turnover"]:
-                    if col not in df.columns:
-                        df[col] = 0
-
-                df = df[(df["ltp"] > 0) & (df["volume"] > 0)]
-
-                if len(df) > 0:
-                    return df.reset_index(drop=True)
-
-            except:
-                continue
-
-        raise Exception("All data sources failed")
+            return df

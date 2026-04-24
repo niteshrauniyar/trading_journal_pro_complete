@@ -4,59 +4,49 @@ from analysis import run_analysis
 from signals import generate_signals
 
 
-st.set_page_config(layout="wide", page_title="NEPSE Quant App")
+st.set_page_config(layout="wide", page_title="Swing Trading Engine V2")
 
-st.markdown("""
-<style>
-body { background-color: #0e1117; color: white; }
-</style>
-""", unsafe_allow_html=True)
+st.title("📈 NEPSE Swing Trading Engine V2")
 
-st.title("📊 NEPSE Institutional Quant Dashboard")
-
-st.latex(r"Amihud = \frac{|Return\%|}{Turnover\ in\ Millions}")
+st.caption("EOD-based institutional swing detection system")
 
 if "df" not in st.session_state:
     st.session_state.df = None
 
 
-if st.button("🔄 Load Market Data"):
+if st.button("🔄 Run Swing Scan"):
 
-    try:
-        fetcher = NEPSEFetcher()
-        df = fetcher.fetch()
+    fetcher = NEPSEFetcher()
+    df = fetcher.fetch()
 
-        df = run_analysis(df)
-        df = generate_signals(df)
+    df = run_analysis(df)
+    df = generate_signals(df)
 
-        st.session_state.df = df
-
-    except Exception as e:
-        st.error(f"Data error: {e}")
+    st.session_state.df = df
 
 
 df = st.session_state.df
 
-if df is not None and len(df) > 0:
+if df is not None:
 
     c1, c2, c3 = st.columns(3)
 
-    c1.metric("Buy Signals", (df["Signal"] == "STRONG BUY").sum())
-    c2.metric("Exit Signals", (df["Signal"] == "EXIT").sum())
-    c3.metric("Institutional", (df["cluster_name"] == "Institutional").sum())
+    c1.metric("Swing Buys", (df["Signal"] == "SWING BUY").sum())
+    c2.metric("Exits", (df["Signal"] == "EXIT").sum())
+    c3.metric("Institutional", (df["cluster"] == "Institutional").sum())
 
-    st.subheader("📌 Trade Signals")
+    st.subheader("📊 Swing Trade Signals")
 
     st.dataframe(
-        df[df["Signal"].isin(["STRONG BUY", "EXIT"])][
-            ["symbol", "Signal", "Confidence %", "Target", "StopLoss", "Advice"]
+        df[df["Signal"].isin(["SWING BUY", "EXIT"])][
+            ["symbol", "Signal", "Confidence", "Target", "StopLoss", "Advice"]
         ],
         use_container_width=True
     )
 
-    st.subheader("📊 Full Market Matrix")
+    st.subheader("📌 Full Market Scan")
 
     st.dataframe(df, use_container_width=True)
 
 else:
-    st.info("Click Load Market Data")
+    st.info("Click Run Swing Scan to generate signals")

@@ -1,15 +1,12 @@
 import pandas as pd
 import random
 
+
 class NEPSEFetcher:
 
     def fetch(self):
 
-        # --------------------------
-        # SAFE DEMO / FALLBACK DATA
-        # --------------------------
-
-        symbols = ["NABIL", "GBIME", "NICA", "SCB", "HBL"]
+        symbols = ["NABIL", "GBIME", "NICA", "SCB", "HBL", "NIFRA"]
 
         rows = []
 
@@ -20,7 +17,7 @@ class NEPSEFetcher:
             ltp = base + random.randint(-25, 25)
             open_price = base + random.randint(-40, 40)
 
-            volume = random.randint(50000, 500000)
+            volume = random.randint(50000, 800000)
             turnover = volume * ltp
 
             rows.append({
